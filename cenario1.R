@@ -1,11 +1,11 @@
 # Prepara ambiente R
-
-install.packages("gstat")
-install.packages('fitdistrplus')
-install.packages('R6')
-install.packages('evd')
-install.packages('rlist')
-install.packages('gridExtra')
+# teste upload via rstudio cloud
+# install.packages("gstat")
+# install.packages('fitdistrplus')
+# install.packages('R6')
+# install.packages('evd')
+# install.packages('rlist')
+# install.packages('gridExtra')
 
 # Carrega pacotes
 library(gstat)
