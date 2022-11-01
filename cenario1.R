@@ -19,6 +19,8 @@ library(evd)
 library(rlist)
 library(ggplot2)
 library(gridExtra)
+library(tidyverse)
+library(data.table)
 
 ## Mortalidade, ingresso e incrementoR fixos
 
@@ -28,19 +30,22 @@ tree = R6Class("tree",											                                    # cria obje
 		risk = NULL,
     live = NULL, 											                                          # cria flag para identificar vivas
 		trackLife = NULL, 									                                        # cria atributo para contar de vida das árvores
+		volume = NULL,
 		dead = NULL,											                                          # cria flag para identificar ano em que a árvore morreu 
 		initialize = function(
 							  dap = rexp(1, 0.02819),																					# inicia DAP recebendo valor vindo de distribuição exponencial
 								risk = 0.024,																										# inicia probabilidade de morrer fixa
                 live = 1, 						                                          # inicia flag como viva
 							  trackLife = 0, 					                                        # inicia contagem de tempo como 1
-							  dead = NA){						                                          # inicia identificador da morte como NA
+							  volume = 0,
+								dead = NA){						                                          # inicia identificador da morte como NA
 			self$dap = dap                                                            # atribui o valor dap ao atributo dap
       self$risk = risk									                                        # atribui o valor risk ao atributo risk
 			self$live = live									                                        # atribui o valor live à flag live
 			self$dead = dead									                                        # atribui o valor dead à flag dead
 			self$trackLife = trackLife							                                  # atribui o valor tracklife ao atributo tracklife
-		},
+      self$volume = -0.068854 + 0.000841 * dap^2                                # atribui o valor volume
+		  },
 		evolve = function(){				                                                # cria método para avançar um ano na simulação
 			if(runif(1, 0, 1) <= self$risk){				                                  # verifica se morre ou não com base na probabilidade 
 				self$live = 0									                                          # se morrer, flag live assume valor 0
@@ -50,10 +55,11 @@ tree = R6Class("tree",											                                    # cria obje
 				self$dap = self$dap + 
 					abs(rexp(1, 34.26)) * self$dap 	                                      # aplica incremento baseado numa probabilidade com distribuição exponencial negativa
 				self$trackLife = self$trackLife + 1				                              # adiciona um ano no atributo trackLife
+				self$volume = -0.068854 + 0.000841 * self$dap^2
 			}
-		},		
-		volume = function(){			                                                  # cria método para obter o volume da árvore
-			return(-0.068854 + 0.000841 * self$dap^2)						                      # volume baseado numa formula V = f(DAp^2)
+		},
+		get_data = function(){
+		  return(data.frame(self$dap, self$live, self$dead, self$trackLife, self$volume))
 		}
 	)
 )
@@ -66,73 +72,58 @@ while (i <= 240){								                                                # loopi
   i = i + 1                                                   									# incrementa contador de árvores incluídas
 }
 
-volume.simulacao = c()
-mortalidade.simulacao = c()
-arvores.simulacao = c()
-
 anoSim = 0                                                                      # Calcula indicadores da floresta inicial
-
-volList = c()
-mortalidadeList = c()
-dapList = c()
+df.floresta = c()
 for(t in floresta){
-  if(t$live == 1){
-    volList = c(volList, t$volume())
-    dapList = c(dapList, t$dap)
-  } else {
-    if(t$dead == anoSim){
-      mortalidadeList = c(mortalidadeList, 1)
-    }
-  }
+  df.floresta = rbind(df.floresta, t$get_data())
 }
-volume.simulacao = c(volume.simulacao, sum(volList))
-mortalidade.simulacao = c(mortalidade.simulacao, sum(mortalidadeList))
-arvores.simulacao = c(arvores.simulacao, length(dapList))
 
-#paste(arvores.simulacao, 'arvores com', volume.simulacao, 'm³')
-#paste('morreram', mortalidade.simulacao, 'árvores')
-
-diametros = data.frame(dap = dapList)
-g1 = ggplot(diametros, aes(dap)) + geom_histogram(binwidth = 10)                # Distribuição diamétrica inicial
+g1 = ggplot(df.floresta, aes(self.dap)) + geom_histogram(binwidth = 10)         # Distribuição diamétrica inicial
 
 ingressoProb = 0.024
+narv = c(length(floresta))
+volF = c(sum(df.floresta$self.volume))
+
 while(anoSim <= 300){                                                           # inicia simulação onde cada ciclo é um ano.
-  ingresso = sum(rbinom(length(dapList), 1, ingressoProb))
+  ingresso = sum(rbinom(narv[anoSim + 1], 1, ingressoProb))
   i = 1
   while(i <= ingresso){
     floresta = c(floresta, tree$new(dap = 10))
     i = i + 1
   }
-  volList = c()
-  mortalidadeList = c()
-  dapList = c()
+  ntemp = 0
+  vtemp = 0
   for(t in floresta){
     t$evolve()
     if(t$live == 1){
-      volList = c(volList, t$volume())
-      dapList = c(dapList, t$dap)
-    } else {
-      if(t$dead == anoSim){
-        mortalidadeList = c(mortalidadeList, 1)
-      }
+      ntemp = ntemp + 1
+      vtemp = vtemp + t$volume
     }
   }
-  volume.simulacao = c(volume.simulacao, sum(volList))
-  mortalidade.simulacao = c(mortalidade.simulacao, sum(mortalidadeList))
-  arvores.simulacao = c(arvores.simulacao, length(dapList))
+  narv = c(narv, ntemp)
+  volF = c(volF, vtemp)
   anoSim = anoSim + 1
 }
 
-diametros = data.frame(dap = dapList)
-g2 = ggplot(diametros, aes(dap)) + geom_histogram(binwidth = 10)                # Distribuição diamétrica final
+df.floresta.futuro = c()
+for(t in floresta){
+  df.floresta.futuro = rbind(df.floresta.futuro, t$get_data())
+}
 
-mortalidadeSim = data.frame(tempo = seq(0, anoSim, 1), arvMortas = mortalidade.simulacao)
-g3 = ggplot(mortalidadeSim, aes(tempo, arvMortas)) + geom_line(colour = "red")
+g2 = df.floresta.futuro %>% 
+  filter(self.live == 1) %>% 
+  ggplot(aes(self.dap)) + geom_histogram(binwidth = 10)                         # Distribuição diamétrica final
 
-arvoresSim = data.frame(tempo = seq(0, anoSim, 1), narv = arvores.simulacao)
-g4 = ggplot(arvoresSim, aes(tempo, narv)) + geom_line()
+g3 = df.floresta.futuro %>%
+  filter(self.live == 0) %>%
+  group_by(self.trackLife) %>%
+  summarise(narv = n()) %>%
+  ggplot(aes(self.trackLife, narv)) + geom_line(colour = "red")                 # Número de árvores mortas por hectare
 
-estoqueSim = data.frame(tempo = seq(0, anoSim, 1), volume = volume.simulacao)
-g5 = ggplot(estoqueSim, aes(tempo, volume)) + geom_line()
+g4 = ggplot(data.frame(tempo = seq(0, anoSim, 1), narv = narv), 
+            aes(tempo, narv)) + geom_line()                                     # Número de árvores ao longo do tempo
+
+g5 = ggplot(data.frame(tempo = seq(0, anoSim, 1), volume = volF), 
+            aes(tempo, volume)) + geom_line()                                   # Volume de madeira ao longo do tempo
 
 grid.arrange(g1,g2,g3,g4,g5, layout_matrix = rbind(c(1,1,1,2,2,2),c(3,3,4,4,5,5)))
