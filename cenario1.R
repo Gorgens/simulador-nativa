@@ -1,17 +1,8 @@
 # Prepara ambiente R
-# teste upload via rstudio cloud
-# install.packages("gstat")
-# install.packages('fitdistrplus')
-# install.packages('R6')
-# install.packages('evd')
-# install.packages('rlist')
-# install.packages('gridExtra')
 
 # Carrega pacotes
 library(gstat)
-library(dplyr)
 library(sp)
-library(tidyr)
 library(MASS)
 library(fitdistrplus)
 library(R6)
@@ -24,55 +15,21 @@ library(data.table)
 
 ## Mortalidade, ingresso e incrementoR fixos
 
-tree = R6Class("tree",											                                    # cria objeto árvore
-	public = list(												                                        # inicia lista de parâmetros e métodos
-		dap = NULL, 											                                          # cria atributo DAP
-		risk = NULL,
-    live = NULL, 											                                          # cria flag para identificar vivas
-		trackLife = NULL, 									                                        # cria atributo para contar de vida das árvores
-		volume = NULL,
-		dead = NULL,											                                          # cria flag para identificar ano em que a árvore morreu 
-		initialize = function(
-							  dap = rexp(1, 0.02819),																					# inicia DAP recebendo valor vindo de distribuição exponencial
-								risk = 0.024,																										# inicia probabilidade de morrer fixa
-                live = 1, 						                                          # inicia flag como viva
-							  trackLife = 0, 					                                        # inicia contagem de tempo como 1
-							  volume = 0,
-								dead = NA){						                                          # inicia identificador da morte como NA
-			self$dap = dap                                                            # atribui o valor dap ao atributo dap
-      self$risk = risk									                                        # atribui o valor risk ao atributo risk
-			self$live = live									                                        # atribui o valor live à flag live
-			self$dead = dead									                                        # atribui o valor dead à flag dead
-			self$trackLife = trackLife							                                  # atribui o valor tracklife ao atributo tracklife
-      self$volume = -0.068854 + 0.000841 * dap^2                                # atribui o valor volume
-		  },
-		evolve = function(){				                                                # cria método para avançar um ano na simulação
-			if(runif(1, 0, 1) <= self$risk){				                                  # verifica se morre ou não com base na probabilidade 
-				self$live = 0									                                          # se morrer, flag live assume valor 0
-				self$dead = self$trackLife						                                  # se morrer, flag dead assumo valor armazenado em trackLife
-			} 
-			if(self$live == 1){									                                      # condicional para árvore que permenecem vivas
-				self$dap = self$dap + 
-					abs(rexp(1, 34.26)) * self$dap 	                                      # aplica incremento baseado numa probabilidade com distribuição exponencial negativa
-				self$trackLife = self$trackLife + 1				                              # adiciona um ano no atributo trackLife
-				self$volume = -0.068854 + 0.000841 * self$dap^2
-			}
-		},
-		get_data = function(){
-		  return(data.frame(self$dap, self$live, self$dead, self$trackLife, self$volume))
-		}
-	)
-)
+source('arvore.R')
 
+ingressoProb = 0.06
+anoSim = 0
+tempo.sim = 300
 floresta = list()								                                                # inicializa lista de árvore da parcela
 
 i = 1											                                                      # inicializa contador para dap incluídos
 while (i <= 240){								                                                # looping para criação de 580 árvores
-  floresta = c(floresta, tree$new())                                            # cria um objeto árvore viva
+  floresta = c(floresta, tree$new(dap = rexp(1, 0.02819),
+                                  risk = 0.024))                                # cria um objeto árvore viva
   i = i + 1                                                   									# incrementa contador de árvores incluídas
 }
 
-anoSim = 0                                                                      # Calcula indicadores da floresta inicial
+# Calcula indicadores da floresta inicial
 df.floresta = c()
 for(t in floresta){
   df.floresta = rbind(df.floresta, t$get_data())
@@ -80,12 +37,11 @@ for(t in floresta){
 
 g1 = ggplot(df.floresta, aes(self.dap)) + geom_histogram(binwidth = 10)         # Distribuição diamétrica inicial
 
-ingressoProb = 0.024
 narv = c(length(floresta))
 volF = c(sum(df.floresta$self.volume))
 
-while(anoSim <= 300){                                                           # inicia simulação onde cada ciclo é um ano.
-  ingresso = sum(rbinom(narv[anoSim + 1], 1, ingressoProb))
+while(anoSim <= tempo.sim){                                                     # inicia simulação onde cada ciclo é um ano.
+  ingresso = sum(rbinom(100, 1, ingressoProb))
   i = 1
   while(i <= ingresso){
     floresta = c(floresta, tree$new(dap = 10))
@@ -94,7 +50,7 @@ while(anoSim <= 300){                                                           
   ntemp = 0
   vtemp = 0
   for(t in floresta){
-    t$evolve()
+    t$evolve(0)
     if(t$live == 1){
       ntemp = ntemp + 1
       vtemp = vtemp + t$volume
