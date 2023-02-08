@@ -1,5 +1,3 @@
-# Prepara ambiente R
-
 # Carrega pacotes
 library(gstat)
 library(dplyr)
@@ -13,8 +11,11 @@ library(rlist)
 library(ggplot2)
 library(gridExtra)
 
-## Mortalidade exponencial negativa: + dap - mortalidade
+## Mortalidade exponencial positivo: + dap + mortalidade
 
+## b1 = (mortalidade - 0.01)/300
+
+# Prepara ambiente R
 tree = R6Class("tree",											                                    # cria objeto árvore
                public = list(												                            # inicia lista de parâmetros e métodos
                  dap = NULL, 											                              # cria atributo dap
@@ -52,8 +53,8 @@ tree = R6Class("tree",											                                    # cria obje
     },
     risk_update = function(tag){                                                # funcao para atualziar a mortalidade
       self$risk = ifelse(tag == 0, self$risk,                                   # 0 se mortalidade constante
-                         ifelse(tag == 1, abs(2 + 0.008 * self$dap)/100,                         # 1 se mortalidade crescente
-                                ifelse(tag == 2, abs(0.04 * exp(-0.004051 * self$dap)), 1)))          # 2 se mortalidade decrescente 
+                         ifelse(tag == 1, abs(0.01 + 0.00037 * self$dap),                         # 1 se mortalidade crescente
+                                ifelse(tag == 2, abs(0.04 * exp(-0.004051 * self$dap)), self$risk)))        # 2 se mortalidade decrescente 
     },
     get_data = function(){
       return(data.frame(self$dap, self$live, self$dead, self$trackLife, self$volume))
@@ -70,10 +71,10 @@ i = 1											                                                      # iniciali
 while (i <= 240){								                                                # looping para criação de 580 árvores
   d = rexp(1, 0.02819)
   new = tree$new(dap = d,
-                 risk = abs(0.04 * exp(-0.004051 * d)))
-  new$risk_update(2)
+                 risk = abs(0.01 + 0.00037 * d))
+  new$risk_update(1)
   floresta = c(floresta, new)                                                   # cria um objeto árvore viva
-  i = i + 1                                                    									# incrementa contador de árvores incluídas
+  i = i + 1                                                   									# incrementa contador de árvores incluídas
 }
 
 # Calcula indicadores da floresta inicial
@@ -92,14 +93,14 @@ while(anoSim <= tempo.sim){                                                     
   i = 1
   while(i <= ingresso){
     new = tree$new(dap = 10)
-    new$risk_update(2)
+    new$risk_update(1)
     floresta = c(floresta, new)
-        i = i + 1
+    i = i + 1
   }
   ntemp = 0
   vtemp = 0
   for(t in floresta){
-    t$evolve(2)
+    t$evolve(1)
     if(t$live == 1){
       ntemp = ntemp + 1
       vtemp = vtemp + t$volume

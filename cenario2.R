@@ -24,8 +24,9 @@ floresta = list()								                                                # inici
 
 i = 1											                                                      # inicializa contador para dap incluídos
 while (i <= 240){								                                                # looping para criação de 580 árvores
-  new = tree$new(dap = rexp(1, 0.02819),
-                 risk = 0.024)
+  d = rexp(1, 0.02819)
+  new = tree$new(dap = d,
+                 risk = abs(2 + 0.008 * d)/100)
   new$risk_update(1)
   floresta = c(floresta, new)                                # cria um objeto árvore viva
   i = i + 1                                                   									# incrementa contador de árvores incluídas
