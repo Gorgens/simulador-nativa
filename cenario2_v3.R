@@ -35,7 +35,7 @@ arvore = R6Class("arvore",
 			self$chanceMorrer = ifelse(tag == 0, self$chanceMorrer,
 								# tendencia linear de aumento da probabilidade
 								# com intercepto em 1% e probabilidade a 300 cm de DAP é de 2%
-								ifelse(tag == 1, 0.01 + 0.0000333 * self$dap,
+								ifelse(tag == 1, 0.01 + 0.000166 * self$dap,
 								# tendencia exponencial de redução da probabilidade com o aumento do DAP
 								ifelse(tag == 2, abs(0.04 * exp(-0.004051 * self$dap)), 1)))},
 		# Função para exibir atributos da árvore
